@@ -2,6 +2,7 @@ package id.vin;
 
 import java.io.*;
 import java.time.Year;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Scanner;
 import java.util.StringTokenizer;
@@ -45,9 +46,12 @@ public class Main {
 
                         break;
                     case '4':
-                        System.out.println("===== Update Data Buku ====");
                         error = false;
-
+                        try{
+                            updateData(inputTerminal);
+                        }catch (IOException ex){
+                            System.err.println("\nTidak dapat membaca file daftar buku! Database belum ada.\nSilahkan tambah file terlebih dahulu di menu 3.");
+                        }
                         break;
                     case '5':
                         error = false;
@@ -181,7 +185,7 @@ public class Main {
 
     // Retrieve: Searching -> cari data buku
     private static boolean cariDataBuku(String keywords[], boolean display) throws IOException {
-        boolean isExist;
+        boolean isExist = false;
         boolean notFound = false;
         int i = 1;
 
@@ -205,6 +209,10 @@ public class Main {
                 // nilai boolean, kedua keyword harus ada di data
                 isExist = isExist && data.toLowerCase().contains(keyword.toLowerCase());
                 notFound = isExist || notFound;
+
+                System.out.println(keyword);
+                System.out.println(isExist);
+                System.out.println(notFound);
             }
 
             //tampilkan data yang sesuai
@@ -213,12 +221,12 @@ public class Main {
                 i++;
             }
 
-            //pindah baris
+            //pindah baris di file input
             data = bufferRead.readLine();
         }
 
         if (display) {
-            if (!notFound) {
+            if (!isExist) {
                 System.out.printf("\t%65s\t\n", "Data buku tidak ditemukan");
             }
         }
@@ -230,9 +238,161 @@ public class Main {
         fileRead.close();
         bufferRead.close();
 
-        return notFound;
+        return isExist;
     }
 
+    // Update
+    public static void updateData(Scanner inputTerminal) throws IOException{
+        char pilihan = 'y';
+
+        while(pilihan != 'n') {
+            // buka file database original
+            FileReader fileReader = new FileReader("input.txt");
+            BufferedReader bufferedReader = new BufferedReader(fileReader);
+
+            // siapkan file temp
+            FileWriter fileWriter = new FileWriter("temp.txt");
+            BufferedWriter bufferedWriter = new BufferedWriter(fileWriter);
+
+            //tampilkan daftar buku
+            retrieveBuku();
+
+            //ambil keyword yang mau diupdate
+            System.out.println("Pilih buku yang ingin di update (nomor)");
+            inputTerminal = new Scanner(System.in);
+            int keyword = inputTerminal.nextInt();
+
+            pilihan = lanjutUser(inputTerminal, "Ingin mengupdate data nomor " + keyword + "? ");
+
+            if (pilihan != 'n') {
+                int i = 1;
+                String data = bufferedReader.readLine();
+                System.out.println("oke");
+                boolean numFound = false;
+                while (data != null) {
+                    StringTokenizer token = new StringTokenizer(data, ",");
+
+                    if (i == keyword) {
+                        numFound = true;
+                        System.out.println("----------------------------------------------------------------------------------");
+                        System.out.printf("%25sData buku yang akan Anda ubah:\n", " ");
+                        System.out.println("----------------------------------------------------------------------------------");
+                        System.out.printf("%-20s: %s\n", "Primary Key", token.nextToken());
+                        System.out.printf("%-20s: %s\n", "Judul Buku", token.nextToken());
+                        System.out.printf("%-20s: %s\n", "Penulis", token.nextToken());
+                        System.out.printf("%-20s: %s\n", "Penerbit", token.nextToken());
+                        System.out.printf("%-20s: %s\n", "Tahun", token.nextToken());
+                        System.out.println("----------------------------------------------------------------------------------");
+
+                        String fieldData[] = {"judul", "penulis", "penerbit", "tahun"};
+                        String temp[] = new String[4];
+                        String originalData;
+                        token = new StringTokenizer(data, ",");
+                        token.nextToken();
+
+                        for (int index = 0; index < fieldData.length; index++) {
+                            pilihan = lanjutUser(inputTerminal, "Apakah Anda ingin mengubah " + fieldData[index] + " (y/n)? ");
+                            originalData = token.nextToken();
+
+                            if (pilihan == 'y') {
+                                inputTerminal = new Scanner(System.in);
+                                System.out.print("Masukkan " + fieldData[index] + " baru: ");
+                                temp[index] = inputTerminal.nextLine();
+                            } else {
+                                temp[index] = originalData;
+                            }
+                        }
+
+                        token = new StringTokenizer(data, ",");
+                        token.nextToken();
+
+                        System.out.println("----------------------------------------------------------------------------------------");
+                        System.out.printf("%30sPerubahan data buku yang baru:\n", " ");
+                        System.out.println("----------------------------------------------------------------------------------------");
+                        System.out.printf("%-12s: %-30s ---> %s\n", "Judul Buku", token.nextToken(), temp[0]);
+                        System.out.printf("%-12s: %-30s ---> %s\n", "Penulis", token.nextToken(), temp[1]);
+                        System.out.printf("%-12s: %-30s ---> %s\n", "Penerbit", token.nextToken(), temp[2]);
+                        System.out.printf("%-12s: %-30s ---> %s\n", "Tahun", token.nextToken(), temp[3]);
+                        System.out.println("----------------------------------------------------------------------------------------");
+
+                        pilihan = lanjutUser(inputTerminal, "Ingin mengupdate data tersebut? ");
+
+                        if (pilihan != 'n') {
+                            boolean isExist = cariDataBuku(temp, false);
+
+                            System.out.println(Arrays.toString(temp));
+                            System.out.println(isExist);
+
+                            if (isExist) {
+                                System.err.println("Data buku sudah ada. Disarankan untuk menghapus data buku yang bersangkutan");
+                            } else {
+                                // format data yang diupdate ke database
+                                // Buat primary key
+                                String primaryKey = "";
+                                for (int index = 0; index < temp.length; index++) {
+                                    if (index == temp.length - 1) {
+                                        primaryKey += temp[index].toLowerCase().replaceAll(" ", "_");
+                                    } else {
+                                        primaryKey += temp[index].toLowerCase().replaceAll(" ", "_") + "_";
+                                    }
+                                }
+
+                                //tulis ke database
+                                bufferedWriter.write(primaryKey + "," + temp[0] + "," + temp[1] + "," + temp[2] + "," + temp[3]);
+                            }
+                        }
+                    } else {
+                        bufferedWriter.write(data);
+                    }
+
+                    i++;
+                    bufferedWriter.newLine();
+                    data = bufferedReader.readLine();
+                }
+
+                bufferedWriter.flush();
+                fileReader.close();
+                fileWriter.close();
+                bufferedReader.close();
+                bufferedWriter.close();
+
+                if (!numFound) {
+                    System.out.println("Data tidak ditemukan. Tidak dapat mengubah data!");
+                } else {
+                    // buka file temp
+                    FileReader tempWriter = new FileReader("temp.txt");
+                    BufferedReader tempBuffered = new BufferedReader(tempWriter);
+
+                    // siapkan writer untuk menimpa db original dengan hasil perubahan
+                    FileWriter dbWriter = new FileWriter("input.txt");
+                    BufferedWriter dbBuffered = new BufferedWriter(dbWriter);
+
+                    // Timpa file asli dengan hasil perubahan
+                    String updateData = tempBuffered.readLine();
+                    while (updateData != null) {
+                        dbBuffered.write(updateData);
+                        dbBuffered.newLine();
+                        dbBuffered.flush();
+
+                        updateData = tempBuffered.readLine();
+                    }
+
+                    //close file
+                    dbBuffered.close();
+                    tempBuffered.close();
+                    dbWriter.close();
+                    tempWriter.close();
+
+                    System.out.println("Data buku berhasil diupdate!");
+                }
+
+            }
+
+            pilihan = lanjutUser(inputTerminal, "Ingin update data lainnya (y/n)?");
+        }
+    }
+
+    // Delete
     public static void hapusBuku(Scanner inputTerminal) throws IOException{
         char pilihan = 'y';
         // buka file database original
@@ -243,6 +403,8 @@ public class Main {
         FileWriter fileWriter = new FileWriter("temp.txt");
         BufferedWriter bufferedWriter = new BufferedWriter(fileWriter);
 
+
+
         while(pilihan != 'n') {
             //tampilkan daftar buku
             retrieveBuku();
@@ -250,8 +412,6 @@ public class Main {
             //ambil keyword yang mau didelete
             System.out.println("Pilih buku yang ingin di delete (nomor)");
             int keyword = inputTerminal.nextInt();
-
-
             pilihan = lanjutUser(inputTerminal, "Ingin menghapus data nomor " + keyword + "?");
 
             if (pilihan != 'n') {
@@ -325,7 +485,7 @@ public class Main {
     }
 
     private static void tampilkanHeaderTabel(){
-        System.out.println("=========================================================================== Cari Data Buku =================================================================================");
+        System.out.println("========================================================================== Daftar Data Buku ================================================================================");
         System.out.println("----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
         System.out.printf("|\t%2s\t|\t%-60s\t|\t%-20s\t|\t%-20s\t|\t%-20s\t|\tTAHUN\n","NO","KEY","JUDUL BUKU","PENULIS","PENERBIT");
         System.out.println("----------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
